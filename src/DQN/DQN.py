@@ -1,6 +1,12 @@
+import random
+
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
+
+from utils.ReplayMemory import ReplayMemory, Transition
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -24,18 +30,61 @@ class BasicDQN(nn.Module):
         x = F.relu(self.linear2(x))
         x = F.relu(self.linear3(x))
         x = F.relu(self.linear4(x))
-        
         return x
+
+class DQN:
+    
+    def __init__(self, input_size: int, env_action_size: int) -> None:
+
+        self.input_size      = input_size
+        self.env_action_size = env_action_size
+                
+        self.policy_net = BasicDQN(input_size, env_action_size).to(device)
+        self.target_net = BasicDQN(input_size, env_action_size).to(device)
+
+        self.policy_net.train()
+        self.target_net.eval()
+
+        self.epsilon = 0.95
+        self.gamma = 0.99
+        self.TARGET_UPDATE = 100
         
-        # x = F.softmax(self.linear4(x), dim=0)
-        # # x = self.linear4(x)
+        self.BATCH_SIZE = 128
+        
+        self.loss = nn.MSELoss()
+        self.optimizer = optim.Adam(self.policy_net.parameters(), 5e-4)
+
+
+    def select_action(self, state):
+        if random.random() < self.epsilon: 
+            action_value = self.policy_net.forward(state)
+            
+            action = torch.argmax(action_value, dim=0).item()
+            
+            return action
+        else:
+            return random.randrange(self.env_action_size)
+        
+    def learn(self, transitions):
+        
+        batch = Transition(*zip(*transitions))
+        
+        batch_state      = torch.stack(batch.state)
+        batch_action     = torch.stack(batch.action)
+        batch_reward     = torch.stack(batch.reward)
+        batch_next_state = torch.stack(batch.next_state)
+        batch_done       = torch.stack(batch.done)
+        
+
+        q_eval = self.policy_net(batch_state).gather(1, batch_action)
+        q_next = self.target_net(batch_next_state).detach()
+        
+        q_target = batch_reward + self.gamma * (~batch_done.view(self.BATCH_SIZE, 1)).float() * q_next.max(1)[0].view(self.BATCH_SIZE, 1)
         
         
-        # # x = F.relu(self.linear3(x))
-        # # x = x.view(x.size(0), -1)
+        l = self.loss(q_eval, q_target)
         
-        # # tensor( [ [0.4527],[0.5473]], device='cuda:0')
-        
-        # return x
-        
+        self.optimizer.zero_grad()
+        l.backward()
+        self.optimizer.step()
         
