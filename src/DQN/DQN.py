@@ -45,8 +45,8 @@ class DQN:
         self.policy_net.train()
         self.target_net.eval()
 
-        self.epsilon = 0.95
-        self.gamma = 0.99
+        self.EPSILON = 0.95
+        self.GAMMA = 0.99
         self.TARGET_UPDATE = 100
         
         self.BATCH_SIZE = 128
@@ -56,7 +56,7 @@ class DQN:
 
 
     def select_action(self, state):
-        if random.random() < self.epsilon: 
+        if random.random() < self.EPSILON: 
             action_value = self.policy_net.forward(state)
             
             action = torch.argmax(action_value, dim=0).item()
@@ -79,7 +79,7 @@ class DQN:
         q_eval = self.policy_net(batch_state).gather(1, batch_action)
         q_next = self.target_net(batch_next_state).detach()
         
-        q_target = batch_reward + self.gamma * (~batch_done.view(self.BATCH_SIZE, 1)).float() * q_next.max(1)[0].view(self.BATCH_SIZE, 1)
+        q_target = batch_reward + self.GAMMA * (~batch_done.view(self.BATCH_SIZE, 1)).float() * q_next.max(1)[0].view(self.BATCH_SIZE, 1)
         
         
         l = self.loss(q_eval, q_target)
